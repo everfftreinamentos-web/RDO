@@ -1,0 +1,1514 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDO Pro - Relatório Diário de Obra</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        obra: {
+                            dark: '#0f172a',
+                            slate: '#1e293b',
+                            amber: '#f59e0b',
+                            amberDark: '#d97706',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Estilos de Impressão / Exportação PDF */
+        @media print {
+            body {
+                background-color: white !important;
+                color: black !important;
+                font-size: 11pt;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            .print-container {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            .avoid-break {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 12mm;
+            }
+        }
+
+        /* Animações suaves para notificações Toast */
+        @keyframes slideIn {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .toast-enter {
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Scrollbar personalizada */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- ========================================== -->
+    <!-- BARRA DE NAVEGAÇÃO SUPERIOR (APP SHELL)    -->
+    <!-- ========================================== -->
+    <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-lg border-b-4 border-amber-500 no-print">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <!-- Logo e Título -->
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-500 text-slate-900 p-2 rounded-xl shadow-md">
+                    <i data-lucide="hard-hat" class="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-2">
+                        RDO <span class="text-amber-400">PRO</span>
+                        <span class="text-[10px] font-semibold uppercase tracking-wider bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">Engenharia</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">Relatório Diário de Obra & Acompanhamento Técnico</p>
+                </div>
+            </div>
+
+            <!-- Botões de Navegação / Ações Rápidas -->
+            <div class="flex items-center gap-2">
+                <button onclick="openHistoryModal()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 px-3.5 py-2.5 rounded-xl text-sm font-medium transition border border-slate-700 shadow-sm">
+                    <i data-lucide="folder-archive" class="w-4 h-4 text-amber-400"></i>
+                    <span>Salvos</span>
+                    <span id="savedCountBadge" class="bg-amber-500 text-slate-900 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                </button>
+
+                <button onclick="confirmNewReport()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 px-3.5 py-2.5 rounded-xl text-sm font-medium transition border border-slate-700 shadow-sm" title="Iniciar novo relatório em branco">
+                    <i data-lucide="file-plus-2" class="w-4 h-4 text-sky-400"></i>
+                    <span class="hidden md:inline">Novo RDO</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- CONTEÚDO PRINCIPAL (FORMULÁRIO INTERATIVO) -->
+    <!-- ========================================== -->
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-6 space-y-6 no-print">
+
+        <!-- Banner de Status / ID do Relatório Atual -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <span id="reportStatusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                    <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    Rascunho em Edição
+                </span>
+                <span id="reportNumberDisplay" class="text-xs font-mono text-slate-500">ID: #NOVO</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+                <button type="button" onclick="saveDefaultWorkInfo()" class="text-slate-600 hover:text-amber-600 font-medium underline flex items-center gap-1" title="Salva os dados fixos da obra para os próximos relatórios">
+                    <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+                    Fixar dados da obra como padrão
+                </button>
+            </div>
+        </div>
+
+        <form id="rdoForm" onsubmit="event.preventDefault();" class="space-y-6">
+
+            <!-- 1. IDENTIFICAÇÃO DA OBRA -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-slate-800 text-white px-5 py-3.5 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <i data-lucide="building-2" class="w-5 h-5 text-amber-400"></i>
+                        <h2 class="font-bold text-base tracking-wide">1. Identificação da Obra e Responsabilidade Técnica</h2>
+                    </div>
+                </div>
+
+                <div class="p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <!-- Nome da Obra -->
+                    <div class="md:col-span-8">
+                        <label for="obraNome" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Nome da Obra *</label>
+                        <input type="text" id="obraNome" placeholder="Ex: Residencial Horizonte - Torre A" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                    </div>
+
+                    <!-- Número do Contrato -->
+                    <div class="md:col-span-4">
+                        <label for="obraContrato" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Número do Contrato</label>
+                        <input type="text" id="obraContrato" placeholder="Ex: CT-2026/084" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                    </div>
+
+                    <!-- Endereço da Obra -->
+                    <div class="md:col-span-12">
+                        <label for="obraEndereco" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Endereço da Obra</label>
+                        <div class="relative">
+                            <input type="text" id="obraEndereco" placeholder="Rua, Número, Bairro, Cidade - UF" class="w-full rounded-xl border border-slate-300 pl-10 pr-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                            <i data-lucide="map-pin" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+                        </div>
+                    </div>
+
+                    <!-- Data de Início -->
+                    <div class="sm:col-span-6 md:col-span-3">
+                        <label for="obraInicio" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Data de Início</label>
+                        <input type="date" id="obraInicio" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                    </div>
+
+                    <!-- Prazo -->
+                    <div class="sm:col-span-6 md:col-span-3">
+                        <label for="obraPrazo" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Prazo / Término Previsto</label>
+                        <input type="text" id="obraPrazo" placeholder="Ex: 180 dias ou 15/12/2026" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                    </div>
+
+                    <!-- Responsável Técnico -->
+                    <div class="md:col-span-6">
+                        <label for="respTecnico" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Responsável Técnico</label>
+                        <input type="text" id="respTecnico" placeholder="Eng. Civil Nome Completo" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                    </div>
+
+                    <!-- Número do CREA -->
+                    <div class="sm:col-span-6 md:col-span-6">
+                        <label for="numCrea" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Número do CREA</label>
+                        <input type="text" id="numCrea" placeholder="Ex: CREA-MG 123456/D" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                    </div>
+
+                    <!-- Número da ART -->
+                    <div class="sm:col-span-6 md:col-span-6">
+                        <label for="numArt" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Número da ART</label>
+                        <input type="text" id="numArt" placeholder="Ex: ART 2026987654321" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. DATA E CONDIÇÕES CLIMÁTICAS -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-slate-800 text-white px-5 py-3.5 flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <i data-lucide="cloud-sun" class="w-5 h-5 text-amber-400"></i>
+                        <h2 class="font-bold text-base tracking-wide">2. Data e Condições Climáticas</h2>
+                    </div>
+                </div>
+
+                <div class="p-5 space-y-5">
+                    <!-- Linha Superior: Data de Preenchimento e Número do RDO -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pb-4 border-b border-slate-100">
+                        <div>
+                            <label for="dataRelatorio" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Data de Preenchimento *</label>
+                            <input type="date" id="dataRelatorio" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold text-slate-900 bg-slate-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                        </div>
+                        <div>
+                            <label for="rdoNumeroSequencial" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Nº do Relatório (RDO)</label>
+                            <input type="text" id="rdoNumeroSequencial" placeholder="Ex: 001" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                        </div>
+                        <div class="sm:col-span-2 md:col-span-1">
+                            <label for="condicaoTrabalho" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Condição Praticável</label>
+                            <select id="condicaoTrabalho" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition">
+                                <option value="Praticável (Normal)">Praticável (Normal)</option>
+                                <option value="Parcialmente Impraticável">Parcialmente Impraticável</option>
+                                <option value="Impraticável (Paralisado por Clima)">Impraticável (Paralisado por Clima)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Seleção Visual de Clima por Período -->
+                    <div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                Condição do Tempo por Período <span class="text-slate-400 font-normal normal-case">(Toque para selecionar)</span>
+                            </label>
+                            <span class="text-xs text-slate-500">Opções: Sol, Noite, Nublado, Chuvoso, Chuva c/ Relâmpago</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="weatherPeriodsContainer">
+                            <!-- Gerado dinamicamente via JS para Manhã, Tarde e Noite -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. RECURSOS HUMANOS (COLABORADORES) -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-slate-800 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <i data-lucide="users" class="w-5 h-5 text-amber-400"></i>
+                        <h2 class="font-bold text-base tracking-wide">3. Efetivo / Colaboradores</h2>
+                    </div>
+                    <div class="bg-amber-500 text-slate-900 px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+                        <span>TOTAL EFETIVO:</span>
+                        <span id="totalColaboradoresBadge" class="text-sm">0</span>
+                    </div>
+                </div>
+
+                <div class="p-5 space-y-4">
+                    <!-- Atalhos rápidos de cargos comuns na construção -->
+                    <div>
+                        <span class="text-xs font-semibold text-slate-500 block mb-2">Adicionar rapidamente:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="quickAddWorker('Engenheiro Civil')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Engenheiro</button>
+                            <button type="button" onclick="quickAddWorker('Mestre de Obras')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Mestre de Obras</button>
+                            <button type="button" onclick="quickAddWorker('Encarregado')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Encarregado</button>
+                            <button type="button" onclick="quickAddWorker('Pedreiro')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Pedreiro</button>
+                            <button type="button" onclick="quickAddWorker('Servente / Ajudante')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Servente</button>
+                            <button type="button" onclick="quickAddWorker('Carpinteiro')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Carpinteiro</button>
+                            <button type="button" onclick="quickAddWorker('Armador')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Armador</button>
+                            <button type="button" onclick="quickAddWorker('Eletricista')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Eletricista</button>
+                            <button type="button" onclick="quickAddWorker('Técnico de Segurança')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Téc. Segurança</button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Colaboradores -->
+                    <div id="workersList" class="space-y-2.5">
+                        <!-- Linhas adicionadas dinamicamente -->
+                    </div>
+
+                    <!-- Botão Adicionar Função + Campo de Ajuste Manual/Direto -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                        <button type="button" onclick="addWorkerRow()" class="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition shadow-sm">
+                            <i data-lucide="plus-circle" class="w-4 h-4 text-amber-400"></i>
+                            Adicionar Função / Cargo
+                        </button>
+
+                        <div class="flex items-center gap-2 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
+                            <label for="manualTotalOverride" class="text-xs font-semibold text-slate-600">Total Geral Direto (opcional):</label>
+                            <input type="number" id="manualTotalOverride" min="0" placeholder="Auto" oninput="updateTotals()" class="w-20 rounded-lg border border-slate-300 px-2.5 py-1 text-sm font-bold text-center text-slate-900 focus:border-amber-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. EQUIPAMENTOS UTILIZADOS -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-slate-800 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <i data-lucide="truck" class="w-5 h-5 text-amber-400"></i>
+                        <h2 class="font-bold text-base tracking-wide">4. Equipamentos e Máquinas Utilizados</h2>
+                    </div>
+                    <div class="bg-slate-700 text-amber-400 px-3 py-1 rounded-xl text-xs font-bold">
+                        Itens: <span id="totalEquipamentosBadge">0</span>
+                    </div>
+                </div>
+
+                <div class="p-5 space-y-4">
+                    <!-- Atalhos rápidos de equipamentos -->
+                    <div>
+                        <span class="text-xs font-semibold text-slate-500 block mb-2">Adicionar equipamento comum:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="quickAddEquipment('Betoneira 400L')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Betoneira 400L</button>
+                            <button type="button" onclick="quickAddEquipment('Retroescavadeira')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Retroescavadeira</button>
+                            <button type="button" onclick="quickAddEquipment('Caminhão Basculante')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Caminhão Basculante</button>
+                            <button type="button" onclick="quickAddEquipment('Compactador de Solo (Sapo)')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Compactador</button>
+                            <button type="button" onclick="quickAddEquipment('Vibrador de Concreto')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Vibrador Concreto</button>
+                            <button type="button" onclick="quickAddEquipment('Andaime Metálico')" class="text-xs bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 transition">+ Andaime</button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Equipamentos -->
+                    <div id="equipmentsList" class="space-y-2.5">
+                        <!-- Linhas adicionadas dinamicamente -->
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-100">
+                        <button type="button" onclick="addEquipmentRow()" class="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition shadow-sm">
+                            <i data-lucide="plus-circle" class="w-4 h-4 text-amber-400"></i>
+                            Adicionar Equipamento
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. ATIVIDADES EXECUTADAS E OCORRÊNCIAS -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-slate-800 text-white px-5 py-3.5 flex items-center gap-2.5">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 text-amber-400"></i>
+                    <h2 class="font-bold text-base tracking-wide">5. Atividades Executadas e Ocorrências</h2>
+                </div>
+
+                <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label for="atividadesDesc" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                            Descrição dos Serviços / Atividades Executadas
+                        </label>
+                        <textarea id="atividadesDesc" rows="5" placeholder="Descreva as frentes de serviço, concretagens, alvenaria, instalações, recebimento de materiais..." class="w-full rounded-xl border border-slate-300 p-3.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"></textarea>
+                    </div>
+
+                    <div>
+                        <label for="ocorrenciasDesc" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                            Ocorrências / Segurança do Trabalho / Observações
+                        </label>
+                        <textarea id="ocorrenciasDesc" rows="5" placeholder="Registre DDS realizado, inspeções de EPI, interferências, paralisações, visitas técnicas ou pendências..." class="w-full rounded-xl border border-slate-300 p-3.5 text-sm text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition"></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. REGISTRO FOTOGRÁFICO (CÂMERA E GALERIA) -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-slate-800 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <i data-lucide="camera" class="w-5 h-5 text-amber-400"></i>
+                        <h2 class="font-bold text-base tracking-wide">6. Registro Fotográfico da Obra</h2>
+                    </div>
+                    <span id="photoCountBadge" class="text-xs bg-slate-700 text-slate-200 px-2.5 py-1 rounded-lg font-medium">0 fotos anexadas</span>
+                </div>
+
+                <div class="p-5 space-y-5">
+                    <!-- Inputs de Arquivo Ocultos -->
+                    <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(event)">
+                    <input type="file" id="galleryInput" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload(event)">
+
+                    <!-- Botões Grandes de Captura / Seleção -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button type="button" onclick="document.getElementById('cameraInput').click()" class="flex items-center justify-center gap-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-bold py-4 px-5 rounded-2xl shadow-md transition cursor-pointer">
+                            <div class="bg-slate-900/10 p-2 rounded-xl">
+                                <i data-lucide="camera" class="w-6 h-6"></i>
+                            </div>
+                            <div class="text-left">
+                                <div class="text-sm sm:text-base leading-tight">Abrir Câmera</div>
+                                <div class="text-xs font-medium text-slate-900/80">Tirar foto agora no canteiro</div>
+                            </div>
+                        </button>
+
+                        <button type="button" onclick="document.getElementById('galleryInput').click()" class="flex items-center justify-center gap-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white font-bold py-4 px-5 rounded-2xl shadow-md transition cursor-pointer">
+                            <div class="bg-white/10 p-2 rounded-xl">
+                                <i data-lucide="image-plus" class="w-6 h-6 text-amber-400"></i>
+                            </div>
+                            <div class="text-left">
+                                <div class="text-sm sm:text-base leading-tight">Escolher da Galeria</div>
+                                <div class="text-xs font-medium text-slate-300">Selecionar uma ou várias fotos</div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Estado Vazio das Fotos -->
+                    <div id="emptyPhotosPlaceholder" class="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center text-slate-400">
+                        <i data-lucide="images" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+                        <p class="text-sm font-medium text-slate-500">Nenhuma foto adicionada a este relatório.</p>
+                        <p class="text-xs mt-1">Use os botões acima para fotografar o andamento dos serviços ou anexar imagens.</p>
+                    </div>
+
+                    <!-- Grid de Pré-visualização das Fotos -->
+                    <div id="photosGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 hidden">
+                        <!-- Cards de fotos renderizados via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- BARRA DE AÇÕES FINAIS (SALVAR / IMPRIMIR PDF) -->
+            <div class="bg-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-xl border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <button type="button" onclick="confirmNewReport()" class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    Limpar / Novo
+                </button>
+
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <button type="button" onclick="saveCurrentReport()" class="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-sm sm:text-base shadow-lg transition">
+                        <i data-lucide="save" class="w-5 h-5"></i>
+                        Salvar Relatório
+                    </button>
+
+                    <button type="button" onclick="prepareAndPrint()" class="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-extrabold text-sm sm:text-base shadow-lg transition">
+                        <i data-lucide="printer" class="w-5 h-5"></i>
+                        Gerar PDF / Imprimir
+                    </button>
+                </div>
+            </div>
+
+        </form>
+    </main>
+
+    <!-- ========================================== -->
+    <!-- ÁREA EXCLUSIVA DE IMPRESSÃO / PDF (A4)     -->
+    <!-- ========================================== -->
+    <div id="printView" class="hidden print-only print-container bg-white text-slate-900">
+        <!-- O conteúdo formatado A4 é injetado dinamicamente antes de window.print() -->
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL: RELATÓRIOS SALVOS (HISTÓRICO)       -->
+    <!-- ========================================== -->
+    <div id="historyModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm hidden flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <!-- Cabeçalho Modal -->
+            <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b-2 border-amber-500">
+                <div class="flex items-center gap-2.5">
+                    <i data-lucide="folder-archive" class="w-5 h-5 text-amber-400"></i>
+                    <h3 class="font-bold text-base">Relatórios Salvos no Dispositivo</h3>
+                </div>
+                <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Lista de Relatórios -->
+            <div id="savedReportsList" class="p-5 overflow-y-auto space-y-3 flex-1 bg-slate-50">
+                <!-- Preenchido via JS -->
+            </div>
+
+            <!-- Rodapé Modal -->
+            <div class="bg-white px-5 py-3.5 border-t border-slate-200 flex justify-between items-center">
+                <span class="text-xs text-slate-500">Armazenamento local do navegador</span>
+                <button onclick="closeHistoryModal()" class="px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-xl hover:bg-slate-700 transition">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL DE CONFIRMAÇÃO CUSTOMIZADO           -->
+    <!-- ========================================== -->
+    <div id="confirmModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm hidden flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center gap-3 text-amber-600">
+                <div class="bg-amber-100 p-2.5 rounded-xl">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+                <h3 id="confirmModalTitle" class="font-bold text-lg text-slate-900">Confirmar Ação</h3>
+            </div>
+            <p id="confirmModalMessage" class="text-sm text-slate-600 leading-relaxed"></p>
+            <div class="flex justify-end gap-2.5 pt-2">
+                <button id="confirmModalCancelBtn" class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition">
+                    Cancelar
+                </button>
+                <button id="confirmModalOkBtn" class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm transition">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- CONTAINER DE NOTIFICAÇÕES (TOAST)          -->
+    <!-- ========================================== -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0 no-print"></div>
+
+    <!-- ========================================== -->
+    <!-- LÓGICA JAVASCRIPT DA APLICAÇÃO             -->
+    <!-- ========================================== -->
+    <script>
+        // Chaves de LocalStorage
+        const STORAGE_KEY_REPORTS = 'rdo_pro_saved_reports_v1';
+        const STORAGE_KEY_DEFAULT_WORK = 'rdo_pro_default_work_v1';
+
+        // Definição das Opções Climáticas
+        const WEATHER_OPTIONS = [
+            { id: 'sol', label: 'Sol', icon: 'sun', color: 'amber', bgActive: 'bg-amber-500 text-slate-950 border-amber-600', iconColor: 'text-amber-500' },
+            { id: 'noite', label: 'Noite', icon: 'moon', color: 'indigo', bgActive: 'bg-indigo-900 text-white border-indigo-950', iconColor: 'text-indigo-500' },
+            { id: 'nublado', label: 'Nublado', icon: 'cloud', color: 'slate', bgActive: 'bg-slate-600 text-white border-slate-700', iconColor: 'text-slate-500' },
+            { id: 'chuvoso', label: 'Chuvoso', icon: 'cloud-rain', color: 'blue', bgActive: 'bg-blue-600 text-white border-blue-700', iconColor: 'text-blue-500' },
+            { id: 'tempestade', label: 'Chuva c/ Relâmpago', icon: 'cloud-lightning', color: 'purple', bgActive: 'bg-purple-800 text-white border-purple-950', iconColor: 'text-purple-600' }
+        ];
+
+        const PERIODS = [
+            { id: 'manha', label: 'Manhã', defaultWeather: 'sol' },
+            { id: 'tarde', label: 'Tarde', defaultWeather: 'sol' },
+            { id: 'noite', label: 'Noite', defaultWeather: 'noite' }
+        ];
+
+        // Estado Atual do Relatório em Edição
+        let currentReport = {
+            id: null,
+            weather: {
+                manha: 'sol',
+                tarde: 'sol',
+                noite: 'noite'
+            },
+            workers: [],
+            equipments: [],
+            photos: [] // { id, dataUrl, caption }
+        };
+
+        // Inicialização ao carregar a página
+        document.addEventListener('DOMContentLoaded', () => {
+            initNewReport(false);
+            updateSavedCountBadge();
+            lucide.createIcons();
+        });
+
+        // ==========================================
+        // GERENCIAMENTO DE ESTADO E INICIALIZAÇÃO
+        // ==========================================
+        function initNewReport(clearWorkData = false) {
+            const today = new Date().toISOString().split('T')[0];
+
+            currentReport = {
+                id: null,
+                weather: {
+                    manha: 'sol',
+                    tarde: 'sol',
+                    noite: 'noite'
+                },
+                workers: [
+                    { id: generateId(), role: 'Engenheiro Civil', qty: 1 },
+                    { id: generateId(), role: 'Mestre de Obras', qty: 1 },
+                    { id: generateId(), role: 'Pedreiro', qty: 4 },
+                    { id: generateId(), role: 'Servente / Ajudante', qty: 4 }
+                ],
+                equipments: [
+                    { id: generateId(), name: 'Betoneira 400L', qty: 1, obs: 'Operando' }
+                ],
+                photos: []
+            };
+
+            // Limpa campos do formulário
+            document.getElementById('dataRelatorio').value = today;
+            document.getElementById('rdoNumeroSequencial').value = getNextRdoNumber();
+            document.getElementById('condicaoTrabalho').value = 'Praticável (Normal)';
+            document.getElementById('manualTotalOverride').value = '';
+            document.getElementById('atividadesDesc').value = '';
+            document.getElementById('ocorrenciasDesc').value = '';
+
+            if (clearWorkData) {
+                document.getElementById('obraNome').value = '';
+                document.getElementById('obraContrato').value = '';
+                document.getElementById('obraEndereco').value = '';
+                document.getElementById('obraInicio').value = '';
+                document.getElementById('obraPrazo').value = '';
+                document.getElementById('respTecnico').value = '';
+                document.getElementById('numCrea').value = '';
+                document.getElementById('numArt').value = '';
+            } else {
+                loadDefaultWorkInfo();
+            }
+
+            updateStatusHeader(false);
+            renderWeatherSelectors();
+            renderWorkers();
+            renderEquipments();
+            renderPhotos();
+        }
+
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+        }
+
+        function getNextRdoNumber() {
+            const reports = getSavedReports();
+            const nextNum = reports.length + 1;
+            return String(nextNum).padStart(3, '0');
+        }
+
+        function updateStatusHeader(isSaved) {
+            const badge = document.getElementById('reportStatusBadge');
+            const idDisplay = document.getElementById('reportNumberDisplay');
+
+            if (isSaved && currentReport.id) {
+                badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200';
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Relatório Salvo`;
+                idDisplay.textContent = `ID: #${currentReport.id.slice(-6).toUpperCase()}`;
+            } else {
+                badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200';
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Rascunho em Edição`;
+                idDisplay.textContent = currentReport.id ? `ID: #${currentReport.id.slice(-6).toUpperCase()}` : 'ID: #NOVO';
+            }
+        }
+
+        // Salvar / Carregar Dados Fixos da Obra
+        function saveDefaultWorkInfo() {
+            const workData = {
+                obraNome: document.getElementById('obraNome').value.trim(),
+                obraContrato: document.getElementById('obraContrato').value.trim(),
+                obraEndereco: document.getElementById('obraEndereco').value.trim(),
+                obraInicio: document.getElementById('obraInicio').value,
+                obraPrazo: document.getElementById('obraPrazo').value.trim(),
+                respTecnico: document.getElementById('respTecnico').value.trim(),
+                numCrea: document.getElementById('numCrea').value.trim(),
+                numArt: document.getElementById('numArt').value.trim()
+            };
+            localStorage.setItem(STORAGE_KEY_DEFAULT_WORK, JSON.stringify(workData));
+            showToast('Dados padrão da obra fixados para novos relatórios!', 'success');
+        }
+
+        function loadDefaultWorkInfo() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_DEFAULT_WORK);
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                document.getElementById('obraNome').value = data.obraNome || '';
+                document.getElementById('obraContrato').value = data.obraContrato || '';
+                document.getElementById('obraEndereco').value = data.obraEndereco || '';
+                document.getElementById('obraInicio').value = data.obraInicio || '';
+                document.getElementById('obraPrazo').value = data.obraPrazo || '';
+                document.getElementById('respTecnico').value = data.respTecnico || '';
+                document.getElementById('numCrea').value = data.numCrea || '';
+                document.getElementById('numArt').value = data.numArt || '';
+            } catch (e) {
+                console.error('Erro ao carregar dados padrão da obra:', e);
+            }
+        }
+
+        // ==========================================
+        // SEÇÃO 2: CONDIÇÕES CLIMÁTICAS
+        // ==========================================
+        function renderWeatherSelectors() {
+            const container = document.getElementById('weatherPeriodsContainer');
+            container.innerHTML = '';
+
+            PERIODS.forEach(period => {
+                const selectedWeatherId = currentReport.weather[period.id];
+
+                const periodCard = document.createElement('div');
+                periodCard.className = 'bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex flex-col justify-between';
+
+                let buttonsHtml = WEATHER_OPTIONS.map(opt => {
+                    const isSelected = selectedWeatherId === opt.id;
+                    const activeClasses = isSelected
+                        ? `${opt.bgActive} shadow-md scale-[1.02] font-bold`
+                        : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 font-medium';
+                    const iconClass = isSelected ? 'text-current' : opt.iconColor;
+
+                    return `
+                        <button type="button"
+                            onclick="selectWeather('${period.id}', '${opt.id}')"
+                            class="flex items-center gap-2 px-3 py-2 rounded-xl border text-xs transition-all cursor-pointer ${activeClasses}">
+                            <i data-lucide="${opt.icon}" class="w-4 h-4 shrink-0 ${iconClass}"></i>
+                            <span class="truncate">${opt.label}</span>
+                        </button>
+                    `;
+                }).join('');
+
+                periodCard.innerHTML = `
+                    <div class="flex items-center justify-between mb-2.5 pb-1.5 border-b border-slate-200/80">
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">${period.label}</span>
+                        <span class="text-[11px] font-semibold text-amber-600">
+                            ${WEATHER_OPTIONS.find(w => w.id === selectedWeatherId)?.label || ''}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-1 gap-1.5">
+                        ${buttonsHtml}
+                    </div>
+                `;
+
+                container.appendChild(periodCard);
+            });
+
+            lucide.createIcons();
+        }
+
+        function selectWeather(periodId, weatherId) {
+            currentReport.weather[periodId] = weatherId;
+            renderWeatherSelectors();
+        }
+
+        // ==========================================
+        // SEÇÃO 3: COLABORADORES / EFETIVO
+        // ==========================================
+        function renderWorkers() {
+            const container = document.getElementById('workersList');
+            container.innerHTML = '';
+
+            if (currentReport.workers.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4 text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        Nenhuma função adicionada. Use os atalhos acima ou clique em "Adicionar Função".
+                    </div>
+                `;
+            } else {
+                currentReport.workers.forEach((worker, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center gap-2 sm:gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200';
+                    row.innerHTML = `
+                        <div class="flex-1">
+                            <input type="text"
+                                value="${escapeHtml(worker.role)}"
+                                placeholder="Cargo / Função (ex: Pedreiro)"
+                                oninput="updateWorkerRole(${index}, this.value)"
+                                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-amber-500 outline-none">
+                        </div>
+                        <div class="flex items-center gap-1 bg-white border border-slate-300 rounded-lg p-1">
+                            <button type="button" onclick="adjustWorkerQty(${index}, -1)" class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-700 font-bold text-base">-</button>
+                            <input type="number"
+                                min="0"
+                                value="${worker.qty}"
+                                oninput="updateWorkerQty(${index}, this.value)"
+                                class="w-12 text-center font-bold text-sm text-slate-900 outline-none">
+                            <button type="button" onclick="adjustWorkerQty(${index}, 1)" class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-700 font-bold text-base">+</button>
+                        </div>
+                        <button type="button" onclick="removeWorkerRow(${index})" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Remover função">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    `;
+                    container.appendChild(row);
+                });
+            }
+
+            updateTotals();
+            lucide.createIcons();
+        }
+
+        function addWorkerRow(role = '', qty = 1) {
+            currentReport.workers.push({ id: generateId(), role, qty });
+            renderWorkers();
+        }
+
+        function quickAddWorker(roleName) {
+            const existingIndex = currentReport.workers.findIndex(w => w.role.toLowerCase() === roleName.toLowerCase());
+            if (existingIndex !== -1) {
+                currentReport.workers[existingIndex].qty = Number(currentReport.workers[existingIndex].qty || 0) + 1;
+                renderWorkers();
+                showToast(`+1 ${roleName} adicionado`, 'info');
+            } else {
+                addWorkerRow(roleName, 1);
+            }
+        }
+
+        function updateWorkerRole(index, val) {
+            currentReport.workers[index].role = val;
+        }
+
+        function updateWorkerQty(index, val) {
+            currentReport.workers[index].qty = Math.max(0, parseInt(val) || 0);
+            updateTotals();
+        }
+
+        function adjustWorkerQty(index, delta) {
+            const current = Number(currentReport.workers[index].qty || 0);
+            currentReport.workers[index].qty = Math.max(0, current + delta);
+            renderWorkers();
+        }
+
+        function removeWorkerRow(index) {
+            currentReport.workers.splice(index, 1);
+            renderWorkers();
+        }
+
+        function updateTotals() {
+            const manualVal = document.getElementById('manualTotalOverride').value;
+            let totalWorkers = 0;
+
+            if (manualVal !== '' && !isNaN(parseInt(manualVal))) {
+                totalWorkers = Math.max(0, parseInt(manualVal));
+            } else {
+                totalWorkers = currentReport.workers.reduce((sum, w) => sum + (Number(w.qty) || 0), 0);
+            }
+
+            document.getElementById('totalColaboradoresBadge').textContent = totalWorkers;
+
+            const totalEquip = currentReport.equipments.reduce((sum, eq) => sum + (Number(eq.qty) || 0), 0);
+            document.getElementById('totalEquipamentosBadge').textContent = totalEquip;
+        }
+
+        // ==========================================
+        // SEÇÃO 4: EQUIPAMENTOS UTILIZADOS
+        // ==========================================
+        function renderEquipments() {
+            const container = document.getElementById('equipmentsList');
+            container.innerHTML = '';
+
+            if (currentReport.equipments.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4 text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        Nenhum equipamento registrado. Adicione máquinas ou ferramentas utilizadas hoje.
+                    </div>
+                `;
+            } else {
+                currentReport.equipments.forEach((eq, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'grid grid-cols-1 sm:grid-cols-12 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200 items-center';
+                    row.innerHTML = `
+                        <div class="sm:col-span-5">
+                            <label class="text-[10px] font-bold uppercase text-slate-400 sm:hidden">Equipamento</label>
+                            <input type="text"
+                                value="${escapeHtml(eq.name)}"
+                                placeholder="Nome / Tipo do equipamento"
+                                oninput="updateEquipmentField(${index}, 'name', this.value)"
+                                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-amber-500 outline-none">
+                        </div>
+                        <div class="sm:col-span-2 flex items-center gap-1">
+                            <label class="text-[10px] font-bold uppercase text-slate-400 sm:hidden mr-2">Qtd:</label>
+                            <input type="number"
+                                min="1"
+                                value="${eq.qty}"
+                                oninput="updateEquipmentField(${index}, 'qty', this.value)"
+                                class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm font-bold text-center text-slate-900 focus:border-amber-500 outline-none">
+                        </div>
+                        <div class="sm:col-span-4">
+                            <label class="text-[10px] font-bold uppercase text-slate-400 sm:hidden">Status / Obs</label>
+                            <input type="text"
+                                value="${escapeHtml(eq.obs)}"
+                                placeholder="Ex: Operando, Manutenção, Parado"
+                                oninput="updateEquipmentField(${index}, 'obs', this.value)"
+                                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-amber-500 outline-none">
+                        </div>
+                        <div class="sm:col-span-1 flex justify-end">
+                            <button type="button" onclick="removeEquipmentRow(${index})" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Remover equipamento">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+            }
+
+            updateTotals();
+            lucide.createIcons();
+        }
+
+        function addEquipmentRow(name = '', qty = 1, obs = 'Operando') {
+            currentReport.equipments.push({ id: generateId(), name, qty, obs });
+            renderEquipments();
+        }
+
+        function quickAddEquipment(eqName) {
+            const existingIndex = currentReport.equipments.findIndex(e => e.name.toLowerCase() === eqName.toLowerCase());
+            if (existingIndex !== -1) {
+                currentReport.equipments[existingIndex].qty = Number(currentReport.equipments[existingIndex].qty || 0) + 1;
+                renderEquipments();
+                showToast(`+1 ${eqName} adicionado`, 'info');
+            } else {
+                addEquipmentRow(eqName, 1, 'Operando');
+            }
+        }
+
+        function updateEquipmentField(index, field, val) {
+            if (field === 'qty') {
+                currentReport.equipments[index].qty = Math.max(0, parseInt(val) || 0);
+                updateTotals();
+            } else {
+                currentReport.equipments[index][field] = val;
+            }
+        }
+
+        function removeEquipmentRow(index) {
+            currentReport.equipments.splice(index, 1);
+            renderEquipments();
+        }
+
+        // ==========================================
+        // SEÇÃO 6: FOTOS E COMPRESSÃO DE IMAGEM
+        // ==========================================
+        async function handlePhotoUpload(event) {
+            const files = Array.from(event.target.files || []);
+            if (!files.length) return;
+
+            showToast(`Processando ${files.length} foto(s)...`, 'info');
+
+            for (const file of files) {
+                if (!file.type.startsWith('image/')) continue;
+                try {
+                    const compressedDataUrl = await compressImage(file, 1024, 0.78);
+                    currentReport.photos.push({
+                        id: generateId(),
+                        dataUrl: compressedDataUrl,
+                        caption: ''
+                    });
+                } catch (err) {
+                    console.error('Erro ao processar imagem:', err);
+                    showToast('Falha ao carregar uma das imagens.', 'error');
+                }
+            }
+
+            // Limpa o input para permitir selecionar o mesmo arquivo novamente se desejar
+            event.target.value = '';
+            renderPhotos();
+        }
+
+        // Redimensiona e comprime imagens para evitar estourar o limite do localStorage
+        function compressImage(file, maxDimension = 1024, quality = 0.78) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > maxDimension || height > maxDimension) {
+                            if (width > height) {
+                                height = Math.round((height * maxDimension) / width);
+                                width = maxDimension;
+                            } else {
+                                width = Math.round((width * maxDimension) / height);
+                                height = maxDimension;
+                            }
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderPhotos() {
+            const grid = document.getElementById('photosGrid');
+            const placeholder = document.getElementById('emptyPhotosPlaceholder');
+            const countBadge = document.getElementById('photoCountBadge');
+
+            const count = currentReport.photos.length;
+            countBadge.textContent = `${count} ${count === 1 ? 'foto anexada' : 'fotos anexadas'}`;
+
+            if (count === 0) {
+                grid.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+                return;
+            }
+
+            placeholder.classList.add('hidden');
+            grid.classList.remove('hidden');
+            grid.innerHTML = '';
+
+            currentReport.photos.forEach((photo, index) => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden flex flex-col shadow-sm group';
+                card.innerHTML = `
+                    <div class="relative aspect-video bg-slate-900 overflow-hidden">
+                        <img src="${photo.dataUrl}" alt="Foto ${index + 1}" class="w-full h-full object-cover">
+                        <div class="absolute top-2 left-2 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm">
+                            Foto #${index + 1}
+                        </div>
+                        <button type="button" onclick="removePhoto(${index})" class="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-xl shadow-md transition" title="Excluir foto">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="p-3 bg-white flex-1 flex flex-col justify-center">
+                        <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Legenda / Descrição</label>
+                        <input type="text"
+                            value="${escapeHtml(photo.caption)}"
+                            placeholder="Ex: Concretagem da laje do 2º pavimento"
+                            oninput="updatePhotoCaption(${index}, this.value)"
+                            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-amber-500 outline-none">
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        function updatePhotoCaption(index, val) {
+            currentReport.photos[index].caption = val;
+        }
+
+        function removePhoto(index) {
+            currentReport.photos.splice(index, 1);
+            renderPhotos();
+        }
+
+        // ==========================================
+        // PERSISTÊNCIA NO LOCALSTORAGE & HISTÓRICO
+        // ==========================================
+        function collectFormData() {
+            const manualTotalVal = document.getElementById('manualTotalOverride').value;
+            const autoTotal = currentReport.workers.reduce((sum, w) => sum + (Number(w.qty) || 0), 0);
+            const finalTotalWorkers = (manualTotalVal !== '' && !isNaN(parseInt(manualTotalVal)))
+                ? Math.max(0, parseInt(manualTotalVal))
+                : autoTotal;
+
+            return {
+                id: currentReport.id || generateId(),
+                updatedAt: new Date().toISOString(),
+                obraNome: document.getElementById('obraNome').value.trim() || 'Obra Sem Nome',
+                obraContrato: document.getElementById('obraContrato').value.trim(),
+                obraEndereco: document.getElementById('obraEndereco').value.trim(),
+                obraInicio: document.getElementById('obraInicio').value,
+                obraPrazo: document.getElementById('obraPrazo').value.trim(),
+                respTecnico: document.getElementById('respTecnico').value.trim(),
+                numCrea: document.getElementById('numCrea').value.trim(),
+                numArt: document.getElementById('numArt').value.trim(),
+                dataRelatorio: document.getElementById('dataRelatorio').value,
+                rdoNumeroSequencial: document.getElementById('rdoNumeroSequencial').value.trim() || '001',
+                condicaoTrabalho: document.getElementById('condicaoTrabalho').value,
+                weather: { ...currentReport.weather },
+                workers: currentReport.workers.filter(w => w.role.trim() !== '' || w.qty > 0),
+                manualTotalOverride: manualTotalVal,
+                totalWorkers: finalTotalWorkers,
+                equipments: currentReport.equipments.filter(e => e.name.trim() !== ''),
+                atividadesDesc: document.getElementById('atividadesDesc').value.trim(),
+                ocorrenciasDesc: document.getElementById('ocorrenciasDesc').value.trim(),
+                photos: [...currentReport.photos]
+            };
+        }
+
+        function getSavedReports() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_REPORTS);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                console.error('Erro ao ler relatórios salvos:', e);
+                return [];
+            }
+        }
+
+        function saveCurrentReport() {
+            const reportData = collectFormData();
+            currentReport.id = reportData.id;
+
+            const reports = getSavedReports();
+            const existingIdx = reports.findIndex(r => r.id === reportData.id);
+
+            if (existingIdx !== -1) {
+                reports[existingIdx] = reportData;
+            } else {
+                reports.unshift(reportData);
+            }
+
+            try {
+                localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(reports));
+                updateStatusHeader(true);
+                updateSavedCountBadge();
+                showToast('Relatório salvo com sucesso no dispositivo!', 'success');
+            } catch (e) {
+                console.error('Erro ao salvar no localStorage:', e);
+                showToast('Espaço insuficiente no navegador! Tente remover algumas fotos.', 'error');
+            }
+        }
+
+        function updateSavedCountBadge() {
+            const reports = getSavedReports();
+            document.getElementById('savedCountBadge').textContent = reports.length;
+        }
+
+        function openHistoryModal() {
+            const modal = document.getElementById('historyModal');
+            const listContainer = document.getElementById('savedReportsList');
+            const reports = getSavedReports();
+
+            if (reports.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-12 text-slate-400">
+                        <i data-lucide="folder-open" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
+                        <p class="font-semibold text-slate-600">Nenhum relatório salvo ainda</p>
+                        <p class="text-xs mt-1">Preencha os dados da obra e clique em "Salvar Relatório".</p>
+                    </div>
+                `;
+            } else {
+                listContainer.innerHTML = reports.map(rep => {
+                    const formattedDate = formatDateBR(rep.dataRelatorio);
+                    const photoCount = rep.photos ? rep.photos.length : 0;
+                    return `
+                        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-amber-400 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="bg-slate-900 text-amber-400 text-xs font-bold px-2 py-0.5 rounded-md">RDO #${escapeHtml(rep.rdoNumeroSequencial)}</span>
+                                    <span class="text-xs font-semibold text-slate-500">${formattedDate}</span>
+                                    ${photoCount > 0 ? `<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md flex items-center gap-1"><i data-lucide="camera" class="w-3 h-3"></i> ${photoCount}</span>` : ''}
+                                </div>
+                                <h4 class="font-bold text-slate-900 text-sm">${escapeHtml(rep.obraNome)}</h4>
+                                <p class="text-xs text-slate-500">
+                                    Efetivo: <strong>${rep.totalWorkers || 0}</strong> • Equipamentos: <strong>${rep.equipments?.length || 0}</strong>
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-2 self-end sm:self-center">
+                                <button onclick="loadReportIntoForm('${rep.id}')" class="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-lg transition">
+                                    <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                                    Abrir
+                                </button>
+                                <button onclick="deleteSavedReport('${rep.id}')" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Excluir relatório">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        function loadReportIntoForm(id) {
+            const reports = getSavedReports();
+            const rep = reports.find(r => r.id === id);
+            if (!rep) return;
+
+            currentReport = {
+                id: rep.id,
+                weather: rep.weather || { manha: 'sol', tarde: 'sol', noite: 'noite' },
+                workers: rep.workers || [],
+                equipments: rep.equipments || [],
+                photos: rep.photos || []
+            };
+
+            document.getElementById('obraNome').value = rep.obraNome === 'Obra Sem Nome' ? '' : (rep.obraNome || '');
+            document.getElementById('obraContrato').value = rep.obraContrato || '';
+            document.getElementById('obraEndereco').value = rep.obraEndereco || '';
+            document.getElementById('obraInicio').value = rep.obraInicio || '';
+            document.getElementById('obraPrazo').value = rep.obraPrazo || '';
+            document.getElementById('respTecnico').value = rep.respTecnico || '';
+            document.getElementById('numCrea').value = rep.numCrea || '';
+            document.getElementById('numArt').value = rep.numArt || '';
+            document.getElementById('dataRelatorio').value = rep.dataRelatorio || '';
+            document.getElementById('rdoNumeroSequencial').value = rep.rdoNumeroSequencial || '001';
+            document.getElementById('condicaoTrabalho').value = rep.condicaoTrabalho || 'Praticável (Normal)';
+            document.getElementById('manualTotalOverride').value = rep.manualTotalOverride || '';
+            document.getElementById('atividadesDesc').value = rep.atividadesDesc || '';
+            document.getElementById('ocorrenciasDesc').value = rep.ocorrenciasDesc || '';
+
+            renderWeatherSelectors();
+            renderWorkers();
+            renderEquipments();
+            renderPhotos();
+            updateStatusHeader(true);
+            closeHistoryModal();
+            showToast(`RDO #${rep.rdoNumeroSequencial} carregado!`, 'success');
+        }
+
+        function deleteSavedReport(id) {
+            showConfirmModal(
+                'Excluir Relatório',
+                'Tem certeza que deseja excluir permanentemente este relatório salvo?',
+                () => {
+                    let reports = getSavedReports();
+                    reports = reports.filter(r => r.id !== id);
+                    localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(reports));
+                    if (currentReport.id === id) {
+                        currentReport.id = null;
+                        updateStatusHeader(false);
+                    }
+                    updateSavedCountBadge();
+                    openHistoryModal();
+                    showToast('Relatório excluído.', 'info');
+                }
+            );
+        }
+
+        function confirmNewReport() {
+            showConfirmModal(
+                'Novo Relatório em Branco',
+                'Deseja limpar os campos diários para iniciar um novo RDO? (Os dados fixos da obra serão mantidos se estiverem salvos).',
+                () => {
+                    initNewReport(false);
+                    showToast('Pronto para preencher um novo RDO!', 'info');
+                }
+            );
+        }
+
+        // ==========================================
+        // GERAÇÃO DE DOCUMENTO PARA IMPRESSÃO / PDF
+        // ==========================================
+        function prepareAndPrint() {
+            const data = collectFormData();
+            const printContainer = document.getElementById('printView');
+
+            const getWeatherLabel = (id) => WEATHER_OPTIONS.find(w => w.id === id)?.label || '-';
+
+            // Tabela de Colaboradores
+            const workersRowsHtml = data.workers.length > 0
+                ? data.workers.map(w => `
+                    <tr class="border-b border-slate-300">
+                        <td class="py-1.5 px-2.5 text-left">${escapeHtml(w.role)}</td>
+                        <td class="py-1.5 px-2.5 text-center font-semibold">${w.qty}</td>
+                    </tr>
+                `).join('')
+                : `<tr><td colspan="2" class="py-2 px-2.5 text-center text-slate-400 italic">Nenhum detalhe por cargo informado</td></tr>`;
+
+            // Tabela de Equipamentos
+            const equipmentsRowsHtml = data.equipments.length > 0
+                ? data.equipments.map(eq => `
+                    <tr class="border-b border-slate-300">
+                        <td class="py-1.5 px-2.5 text-left">${escapeHtml(eq.name)}</td>
+                        <td class="py-1.5 px-2.5 text-center font-semibold">${eq.qty}</td>
+                        <td class="py-1.5 px-2.5 text-left text-slate-600">${escapeHtml(eq.obs || '-')}</td>
+                    </tr>
+                `).join('')
+                : `<tr><td colspan="3" class="py-2 px-2.5 text-center text-slate-400 italic">Nenhum equipamento registrado</td></tr>`;
+
+            // Grid de Fotos para Impressão
+            const photosHtml = data.photos.length > 0
+                ? `
+                    <div class="mt-5 avoid-break">
+                        <div class="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5">
+                            6. Registro Fotográfico (${data.photos.length} ${data.photos.length === 1 ? 'foto' : 'fotos'})
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 pt-3">
+                            ${data.photos.map((photo, idx) => `
+                                <div class="border border-slate-300 rounded-lg overflow-hidden avoid-break bg-white">
+                                    <div class="aspect-video bg-slate-100 overflow-hidden">
+                                        <img src="${photo.dataUrl}" class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="p-2 text-[10px] border-t border-slate-200">
+                                        <strong class="text-slate-800">Foto ${idx + 1}:</strong>
+                                        <span class="text-slate-700">${escapeHtml(photo.caption || 'Sem legenda')}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `
+                : '';
+
+            printContainer.innerHTML = `
+                <div class="border-2 border-slate-800 p-5 text-xs">
+                    <!-- Cabeçalho Oficial A4 -->
+                    <div class="flex items-center justify-between border-b-2 border-slate-800 pb-3 mb-4">
+                        <div>
+                            <div class="text-[10px] font-bold uppercase tracking-widest text-amber-600">Engenharia & Construção Civil</div>
+                            <h1 class="text-xl font-black tracking-tight text-slate-900">RELATÓRIO DIÁRIO DE OBRA (RDO)</h1>
+                        </div>
+                        <div class="text-right border-2 border-slate-800 px-3 py-1.5 bg-slate-50">
+                            <div class="text-[10px] font-bold uppercase text-slate-500">RDO Nº</div>
+                            <div class="text-base font-black text-slate-900">${escapeHtml(data.rdoNumeroSequencial)}</div>
+                            <div class="text-[11px] font-semibold text-slate-700 mt-0.5">Data: ${formatDateBR(data.dataRelatorio)}</div>
+                        </div>
+                    </div>
+
+                    <!-- Bloco 1: Identificação da Obra -->
+                    <div class="mb-4 avoid-break">
+                        <div class="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5">
+                            1. Identificação da Obra e Responsabilidade Técnica
+                        </div>
+                        <table class="w-full border-collapse border border-slate-300 text-[11px]">
+                            <tr class="border-b border-slate-300">
+                                <td class="p-2 bg-slate-50 font-bold w-1/6 border-r border-slate-300">Obra:</td>
+                                <td class="p-2 font-semibold w-3/6 border-r border-slate-300">${escapeHtml(data.obraNome)}</td>
+                                <td class="p-2 bg-slate-50 font-bold w-1/6 border-r border-slate-300">Contrato:</td>
+                                <td class="p-2 w-1/6">${escapeHtml(data.obraContrato || '-')}</td>
+                            </tr>
+                            <tr class="border-b border-slate-300">
+                                <td class="p-2 bg-slate-50 font-bold border-r border-slate-300">Endereço:</td>
+                                <td class="p-2" colspan="3">${escapeHtml(data.obraEndereco || '-')}</td>
+                            </tr>
+                            <tr class="border-b border-slate-300">
+                                <td class="p-2 bg-slate-50 font-bold border-r border-slate-300">Início:</td>
+                                <td class="p-2 border-r border-slate-300">${formatDateBR(data.obraInicio) || '-'}</td>
+                                <td class="p-2 bg-slate-50 font-bold border-r border-slate-300">Prazo:</td>
+                                <td class="p-2">${escapeHtml(data.obraPrazo || '-')}</td>
+                            </tr>
+                            <tr class="border-b border-slate-300">
+                                <td class="p-2 bg-slate-50 font-bold border-r border-slate-300">Resp. Técnico:</td>
+                                <td class="p-2 border-r border-slate-300">${escapeHtml(data.respTecnico || '-')}</td>
+                                <td class="p-2 bg-slate-50 font-bold border-r border-slate-300">CREA:</td>
+                                <td class="p-2">${escapeHtml(data.numCrea || '-')}</td>
+                            </tr>
+                            <tr>
+                                <td class="p-2 bg-slate-50 font-bold border-r border-slate-300">Nº ART:</td>
+                                <td class="p-2" colspan="3">${escapeHtml(data.numArt || '-')}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Bloco 2: Condições Climáticas -->
+                    <div class="mb-4 avoid-break">
+                        <div class="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5">
+                            2. Condições Climáticas
+                        </div>
+                        <table class="w-full border-collapse border border-slate-300 text-[11px] text-center">
+                            <tr class="bg-slate-50 font-bold border-b border-slate-300">
+                                <td class="p-2 border-r border-slate-300 w-1/4">Manhã</td>
+                                <td class="p-2 border-r border-slate-300 w-1/4">Tarde</td>
+                                <td class="p-2 border-r border-slate-300 w-1/4">Noite</td>
+                                <td class="p-2 w-1/4">Condição Praticável</td>
+                            </tr>
+                            <tr>
+                                <td class="p-2 border-r border-slate-300 font-semibold">${getWeatherLabel(data.weather.manha)}</td>
+                                <td class="p-2 border-r border-slate-300 font-semibold">${getWeatherLabel(data.weather.tarde)}</td>
+                                <td class="p-2 border-r border-slate-300 font-semibold">${getWeatherLabel(data.weather.noite)}</td>
+                                <td class="p-2 font-semibold">${escapeHtml(data.condicaoTrabalho)}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Bloco 3 e 4: Efetivo e Equipamentos Lado a Lado -->
+                    <div class="grid grid-cols-2 gap-4 mb-4 avoid-break">
+                        <!-- Efetivo -->
+                        <div>
+                            <div class="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5 flex justify-between">
+                                <span>3. Efetivo / Mão de Obra</span>
+                                <span>Total: ${data.totalWorkers}</span>
+                            </div>
+                            <table class="w-full border-collapse border border-slate-300 text-[11px]">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-300">
+                                        <th class="py-1.5 px-2.5 text-left font-bold">Função / Cargo</th>
+                                        <th class="py-1.5 px-2.5 text-center font-bold w-16">Qtd.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${workersRowsHtml}
+                                    <tr class="bg-slate-100 font-bold">
+                                        <td class="py-1.5 px-2.5 text-right">TOTAL GERAL:</td>
+                                        <td class="py-1.5 px-2.5 text-center">${data.totalWorkers}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Equipamentos -->
+                        <div>
+                            <div class="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5">
+                                4. Equipamentos Utilizados
+                            </div>
+                            <table class="w-full border-collapse border border-slate-300 text-[11px]">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-300">
+                                        <th class="py-1.5 px-2.5 text-left font-bold">Equipamento</th>
+                                        <th class="py-1.5 px-2.5 text-center font-bold w-12">Qtd.</th>
+                                        <th class="py-1.5 px-2.5 text-left font-bold">Status/Obs</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${equipmentsRowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Bloco 5: Atividades e Ocorrências -->
+                    <div class="mb-4 avoid-break">
+                        <div class="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5">
+                            5. Descrição das Atividades Executadas
+                        </div>
+                        <div class="border border-slate-300 p-3 min-h-[70px] whitespace-pre-line text-[11px] leading-relaxed">
+                            ${escapeHtml(data.atividadesDesc || 'Nenhuma atividade registrada.')}
+                        </div>
+                    </div>
+
+                    <div class="mb-4 avoid-break">
+                        <div class="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5">
+                            Ocorrências / Segurança / Observações Gerais
+                        </div>
+                        <div class="border border-slate-300 p-3 min-h-[55px] whitespace-pre-line text-[11px] leading-relaxed">
+                            ${escapeHtml(data.ocorrenciasDesc || 'Sem ocorrências registradas.')}
+                        </div>
+                    </div>
+
+                    <!-- Bloco 6: Fotos -->
+                    ${photosHtml}
+
+                    <!-- Assinaturas -->
+                    <div class="grid grid-cols-2 gap-8 mt-10 pt-6 avoid-break text-center text-[11px]">
+                        <div>
+                            <div class="border-t border-slate-800 pt-1.5 font-bold">${escapeHtml(data.respTecnico || 'Responsável Técnico / Executor')}</div>
+                            <div class="text-[10px] text-slate-500">${data.numCrea ? 'CREA: ' + escapeHtml(data.numCrea) : 'Engenharia / Execução'}</div>
+                        </div>
+                        <div>
+                            <div class="border-t border-slate-800 pt-1.5 font-bold">Fiscalização / Contratante</div>
+                            <div class="text-[10px] text-slate-500">Visto / Aprovação</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Dispara a janela de impressão / salvar como PDF do navegador
+            setTimeout(() => {
+                window.print();
+            }, 250);
+        }
+
+        // ==========================================
+        // UTILITÁRIOS DE UI (TOASTS E MODAIS)
+        // ==========================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            const styles = {
+                success: 'bg-emerald-900 text-white border-emerald-500',
+                error: 'bg-red-900 text-white border-red-500',
+                info: 'bg-slate-900 text-white border-amber-500'
+            };
+
+            const icons = {
+                success: 'check-circle-2',
+                error: 'alert-circle',
+                info: 'info'
+            };
+
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border-l-4 text-xs sm:text-sm font-medium toast-enter ${styles[type] || styles.info}`;
+            toast.innerHTML = `
+                <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0 text-amber-400"></i>
+                <span class="flex-1">${escapeHtml(message)}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const modal = document.getElementById('confirmModal');
+            document.getElementById('confirmModalTitle').textContent = title;
+            document.getElementById('confirmModalMessage').textContent = message;
+
+            const okBtn = document.getElementById('confirmModalOkBtn');
+            const cancelBtn = document.getElementById('confirmModalCancelBtn');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+
+            okBtn.onclick = () => {
+                cleanup();
+                if (typeof onConfirm === 'function') onConfirm();
+            };
+
+            cancelBtn.onclick = cleanup;
+            modal.classList.remove('hidden');
+        }
+
+        function formatDateBR(isoDate) {
+            if (!isoDate) return '';
+            const parts = isoDate.split('-');
+            if (parts.length !== 3) return isoDate;
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>
